@@ -1,6 +1,5 @@
 # Trump.RData - The dataset after all the simple data clean that is available for further analysis.
-# map.RDdata - The dataset including all the latitude and longtitude points for map plots.
-# worldclud.RData - The dataset used for wordcloud plot, which includes term names and term frequency.
-# tdm.RData - TermDocumentMatrix. For Cluster Dendrogram & Word Association Analysis.
-# dtm.new.RData - DocumentTermMatrix removed all docs without words. For Topic Modelling analysis.
-# Tr.RData - The dataset used for Topic Modelling, which has removed all docs without words
+# map.RDdata - The dataset including all the available latitude and longtitude points for map plots.
+# wordcloud.RData - The dataset used for wordcloud plot, which includes term names and term frequency.
+# senti.RData - For sentiment Analysis.
+# rets.RData - Dataset for top retweet analysis and time series analysis.
