@@ -1,0 +1,180 @@
+---
+title: "Twitter Data Mining"
+author: "Tianwen Huan"
+date: "12/10/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(grid)
+library(dplyr)
+library(graph)
+library(Rgraphviz)
+library(leaflet)
+library(tm)
+library(data.table)
+if (!require('pacman')) install.packages('pacman')
+pacman::p_load(twitteR, sentiment, plyr, ggplot2, wordcloud, RColorBrewer, httpuv, RCurl, base64enc)
+```
+
+```{r, include=FALSE}
+# Install the Sentiment Package
+# if (!require('pacman')) install.packages('pacman&')
+# pacman::p_load(devtools, installr)
+# install_url('http://cran.r-project.org/src/contrib/Archive/Rstem/Rstem_0.4-1.tar.gz')
+# install_url('http://cran.r-project.org/src/contrib/Archive/sentiment/sentiment_0.2.tar.gz')
+```
+
+```{r, include=FALSE}
+# Install the Graph Package
+# source("https://bioconductor.org/biocLite.R")
+# biocLite("BiocInstaller")
+# biocLite("graph")
+# biocLite("Rgraphviz")
+```
+
+```{r, include=FALSE}
+# install package sentiment140
+# require(devtools)
+# install_github("sentiment140", "okugami79")
+```
+
+```{r, include=FALSE}
+load("map.RData")
+load("tdm.RData")
+load("wordcloud.RData")
+load("lda.RData")
+load("topics.RData")
+load("senti.RData")
+load("rets.RData")
+```
+
+  \  \ This project first used 'filterStream' code to track data including 'Trump' located in United States from Twitter. The original dataset include 28147 observations. Based on this dataset, I first did some simple data clean to make it suitable for later analysis. Based on this original data, I divided the further analysis into five parts:
+  
+     1. Map 
+     
+     2. Word Cloud
+     
+     3. Top Retweeted Analysis
+     
+     4. Sentiment Analysis
+     
+     5. Time Series
+     
+  \ All the dataset and R document I created for this project have been uploaded to my github account. The materials can be found from the link below: 
+  
+  \ https://github.com/hhtiffany/MA615-Final-Project
+
+## 1. Map
+
+  \ This map plotted all the available 'place_lat' and 'place_lon' points created from the original dataset. From the map below we can tell that people near the seaside and east pay more attention on Trump in Twitter than people live in the inland.
+  
+```{r, warning=FALSE}
+map.data <- map_data("state") 
+ggplot(map.data)+
+  geom_map(aes(map_id=region),
+           map=map.data,
+           fill="white",
+           color="grey20", size=0.25)+
+  expand_limits(x=map.data$place_long,y=map.data$place_lat)+
+  theme(axis.line=element_blank(),
+        axis.text=element_blank(),
+        axis.ticks=element_blank(),
+        axis.title=element_blank(),
+        panel.background=element_blank(),
+        panel.border=element_blank(),
+        panel.grid.major=element_blank(),
+        plot.background=element_blank(), 
+        plot.margin=unit(0*c(-1.5,-1.5,-1.5,-1.5),"lines"))+
+  geom_point(data=map, 
+             aes(x=x,y=y),size=1,
+             alpha=1/5,color="navy")
+```
+
+
+## 2. Word Cloud
+
+  \ From the picture below we can find that people really interested in 'Job', 'Russia' and 'Sate Security' when they talk about Trump on Twitter.
+```{r}
+# plot world cloud
+set.seed(1)
+wordcloud(words = wordcloud$term, freq = wordcloud$freq, min.freq = 60, 
+          random.color = TRUE, random.order=FALSE,
+          max.words=200, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
+```
+
+
+  \ The barplot below has shown the top 20 popular words people used when they mentioned Trump on Twitter, which has revealed the area people most considerded about, such as 'Job', 'Russia', 'Sate Security' and so on. Just the same as the Word Cloud has shown.
+  
+```{r}
+### Barplot for Top Frenquency Words
+wordcloud20 <- wordcloud %>% filter(freq>700)
+
+ggplot(wordcloud20, aes(x=term, y=freq)) + geom_bar(stat="identity", width=0.5, fill="lightblue") +
+  xlab("Terms") + ylab("Count") + coord_flip() +
+  theme(axis.text=element_text(size=10)) +
+  geom_text(aes(label=freq), vjust=0.3, hjust=1.1, color="white", size=3.5) 
+```
+
+
+## 3. Top Retweeted Tweetsop
+
+  \ This plot shows the top retweeted twitters related to Trump in different year. The most retweeted twitters are created in recent years. This is normal because the time passing made old twitter hard to be found again by people.
+  
+```{r}
+# select top retweeted tweets
+selected <- which(rets$retweet_count >= 27000)
+
+# plot them
+dates <- strptime(rets$created, format="%Y-%m-%d")
+plot(x=dates, y=rets$retweet_count, type="l", col="grey",
+     xlab="Date", ylab="Times retweeted")
+
+# plot points and text
+colors <- rainbow(length(selected))[1:length(selected)]
+points(dates[selected], rets$retweet_count[selected], 
+       pch=19, col=colors)
+
+text(dates[selected], rets$retweet_count[selected],
+     rets$text[selected], col=colors, cex=.9)
+
+```
+
+
+## 4. Sentiment Analysis
+
+  \ I used the 'sentiment' function to get the polarity column. After that, I created a 'score' column based on the polarity column, let score equals to 1 if the polarity is positive, -1 if the polarity is negative, otherwise 0. The higher the score, the more positive. The lower the score, the more negative. Then I sumed daily score and created a time series dataset.  The result showed a liitle bit more negative than positive. 
+  
+```{r, warning=FALSE}
+plot(senti, type = "l")
+```
+
+
+## 5. Time Sries for 2016
+
+  \ This plot shows the daily tweets number for 2016.
+
+```{r}
+require(xts)
+# count daily tweets
+year <- year(strptime(rets$created, format="%Y"))
+ts=xts(rep(1,times=nrow(rets[year==2016,])),rets[year==2016,]$created)
+ts.sum=apply.daily(ts,sum) 
+
+# turn the timeseries into a dataframe
+ts.sum.wordcloud=data.frame(date=index(ts.sum), coredata(ts.sum))
+colnames(ts.sum.wordcloud)=c('date','sum')
+
+# plot the timeseries...
+ggplot(ts.sum.wordcloud)+geom_line(aes(x=date,y=sum))
+```
+
+
+  \ The ACF plot helps to check the autocorrelation. The result suggested that there is no significant correlation to be captured by a model. The autocorrelations are within the 5% significance bands. 
+
+```{r}
+# check the autocorrelation:
+acf(ts.sum)
+```
+
